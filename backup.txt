@@ -1,0 +1,90 @@
+
+// Signup endpoint
+
+app.post('/signup', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        console.log(email, password)
+        const existingUser = await database.collection(UrlCollection).findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ error: 'User already exists' });
+        }
+        // Generate a unique userId (you can use libraries like uuid or nanoid)
+        const userId = generateUniqueId(); // Replace generateUniqueId with your actual function
+        await database.collection(UrlCollection).insertOne({ userId, email, password });
+        res.status(201).json({ message: 'User created successfully', userId }); // Include userId in the response
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+// Login endpoint
+app.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await database.collection(UrlCollection).findOne({ email, password });
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+        res.json({ message: 'Login successful', userId: user.userId }); // Include userId in the response
+    } catch (error) {
+        console.error('Error logging in:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+// Endpoint to save a new URL
+app.post('/urls', async (req, res) => {
+    try {
+        const { userId, originalUrl } = req.body;
+        const shortUrl = nanoid(7); // Assuming you're using nanoid to generate short URLs
+        await database.collection(URL_COLLECTION_NAME).insertOne({ userId, originalUrl, shortUrl });
+        res.status(201).json({ message: 'URL saved successfully' });
+    } catch (error) {
+        console.error('Error saving URL:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Endpoint to get all URLs for the logged-in user
+app.get('/urls', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const urls = await database.collection(URL_COLLECTION_NAME).find({ userId }).toArray();
+        res.json(urls);
+    } catch (error) {
+        console.error('Error getting URLs:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Redirect short URL to original URL
+app.get('/:shortId', async (req, res) => {
+    try {
+        const shortId = req.params.shortId;
+        const urlData = await database.collection(URL_COLLECTION_NAME).findOne({ shortUrl: `http://localhost:3000/${shortId}` });
+        if (!urlData) {
+            return res.status(404).json({ error: 'Short URL not found' });
+        }
+        res.redirect(urlData.originalUrl);
+    } catch (error) {
+        console.error('Error redirecting:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.post('/shorten', async (req, res) => {
+    try {
+      const { originalUrl } = req.body;
+      const shortId = nanoid(7); // Generate a short ID
+      const shortUrl = `http://localhost:5013/${shortId}`;
+      const result = await database.collection(URL_COLLECTION_NAME).insertOne({ originalUrl, shortUrl });
+      res.status(201).json({ message: 'URL shortened successfully', shortUrl });
+    } catch (error) {
+      console.error('Error shortening URL:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
